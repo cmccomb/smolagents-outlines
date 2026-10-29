@@ -7,10 +7,10 @@ Constrain the tool action a smolagents model generates at each agent step with a
 Install from the GitHub repository:
 
 ```bash
-python -m pip install "git+https://github.com/cmccomb/smolagents-outlines.git@v0.2.0"
+python -m pip install "git+https://github.com/cmccomb/smolagents-outlines.git"
 ```
 
-For a local checkout, run `python -m pip install -e .`. This release pins the smolagents, Outlines, Transformers, and Accelerate versions used for validation.
+For a local checkout, run `python -m pip install -e .`. The package stays at version 0.1.0 while development continues on GitHub; this version has not been published on PyPI. Its dependencies pin the smolagents, Outlines, Transformers, and Accelerate versions used for validation.
 
 ## Use the model
 
