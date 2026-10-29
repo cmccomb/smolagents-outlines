@@ -62,4 +62,4 @@ python -m pip install build
 python -m build
 ```
 
-A synthetic example notebook is available in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1CmRCRrfMGnPk47isT5586qNZZPne7QVt).
+See the [synthetic Colab example](examples/structured_custom_tools.ipynb) for a complete tool definition and a model-first agent run. The same notebook is available in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1CmRCRrfMGnPk47isT5586qNZZPne7QVt).
