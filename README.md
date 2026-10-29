@@ -34,7 +34,22 @@ model = OutlinesToolModel(
 )
 ```
 
-For another JSON result shape, pass a self-contained JSON Schema as `final_answer_schema` instead. These two options are mutually exclusive.
+For a structured result, pass a JSON Schema as `final_answer_schema` instead:
+
+```python
+answer_schema = {
+    "type": "object",
+    "properties": {
+        "selected_box": {"type": "string", "enum": ["Compact", "Standard"]},
+        "delivered_price_usd": {"type": "number", "minimum": 0},
+    },
+    "required": ["selected_box", "delivered_price_usd"],
+    "additionalProperties": False,
+}
+model = OutlinesToolModel(hf_model, tokenizer, tools, final_answer_schema=answer_schema)
+```
+
+The agent returns a Python dictionary with those fields. The schema checks its shape and types; the agent still has to derive the values from tool observations. `final_answers` and `final_answer_schema` are mutually exclusive.
 
 The same model works with smolagents' native `CodeAgent`:
 
