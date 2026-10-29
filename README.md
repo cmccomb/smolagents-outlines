@@ -64,4 +64,4 @@ python -m pip install build
 python -m build
 ```
 
-See the [synthetic Colab example](examples/structured_custom_tools.ipynb) for a complete tool definition and a model-first agent run. The same notebook is available in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1CmRCRrfMGnPk47isT5586qNZZPne7QVt).
+See the [five-cell Colab example](examples/structured_custom_tools.ipynb) for `@tool` functions with `Literal` argument choices and a native agent run. The same notebook is available in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1CmRCRrfMGnPk47isT5586qNZZPne7QVt).
