@@ -1,5 +1,5 @@
 """Constrained tool actions for smolagents with Outlines."""
 
-from ._core import OutlinesCodeAgent, OutlinesToolCallingAgent, OutlinesToolModel
+from ._core import OutlinesToolModel
 
-__all__ = ["OutlinesToolModel", "OutlinesToolCallingAgent", "OutlinesCodeAgent"]
+__all__ = ["OutlinesToolModel"]

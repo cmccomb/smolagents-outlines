@@ -7,7 +7,7 @@ Constrain the tool action a smolagents model generates at each agent step with a
 Install from the GitHub repository:
 
 ```bash
-python -m pip install "git+https://github.com/cmccomb/smolagents-outlines.git"
+python -m pip install "git+https://github.com/cmccomb/smolagents-outlines.git@v0.2.0"
 ```
 
 For a local checkout, run `python -m pip install -e .`. This release pins the smolagents, Outlines, Transformers, and Accelerate versions used for validation.
@@ -17,10 +17,11 @@ For a local checkout, run `python -m pip install -e .`. This release pins the sm
 Given a Hugging Face Transformers model, its tokenizer, and a list of smolagents tools:
 
 ```python
-from smolagents_outlines import OutlinesToolModel, OutlinesToolCallingAgent
+from smolagents import ToolCallingAgent
+from smolagents_outlines import OutlinesToolModel
 
 model = OutlinesToolModel(hf_model, tokenizer, tools)
-agent = OutlinesToolCallingAgent(tools=tools, model=model, max_steps=8)
+agent = ToolCallingAgent(tools=tools, model=model, max_steps=8)
 answer = agent.run("Use the available tools to answer the question.")
 ```
 
@@ -35,21 +36,21 @@ model = OutlinesToolModel(
 
 For another JSON result shape, pass a self-contained JSON Schema as `final_answer_schema` instead. These two options are mutually exclusive.
 
-The same model works with the CodeAgent helper:
+The same model works with smolagents' native `CodeAgent`:
 
 ```python
-from smolagents_outlines import OutlinesCodeAgent
+from smolagents import CodeAgent
 
-agent = OutlinesCodeAgent(tools=tools, model=model, max_steps=8)
+agent = CodeAgent(tools=tools, model=model, max_steps=8)
 ```
 
-The helpers accept the model explicitly. `OutlinesCodeAgent` supplies a tool-selection prompt and executes one schema-valid tool invocation per step; it does not generate arbitrary Python programs. `OutlinesToolCallingAgent` passes native tool-call objects to smolagents. Both helpers raise on action errors and at the step limit. They reject planning, managed agents, additional base tools, and streamed model output because those paths are outside this action schema.
-
-You can pass the model directly to a native smolagents agent if you prefer its normal error and fallback behavior. Use `OutlinesCodeAgent` for the CodeAgent path when you need the helper's prompt setup and tool-set checks.
+`ToolCallingAgent` receives native tool-call objects. `CodeAgent` receives a complete `<code>` block with one declared tool invocation per step, rather than a general Python program. For CodeAgent actions, the model adds a concise tool-selection instruction to the native prompt; agent instructions remain available. Give the model and agent the same `tools` list. Leave CodeAgent's default code tags and `use_structured_outputs_internally=False` in place. The model supports action generation; planning and other model-generation paths outside an agent action raise. Native smolagents controls step errors and the step-limit fallback.
 
 ## Guarantee and scope
 
 `OutlinesToolModel` builds a JSON schema from the supplied tools' declared `Tool.inputs`, constrains generation with Outlines, and validates the result again before returning an action. It returns a schema-valid action or raises an error. Unsupported input schemas fail during setup. The current implementation supports JSON scalar tool arguments (`string`, `integer`, `number`, `boolean`, and `null`).
+
+The package ships a `py.typed` marker. The public constructor accepts a Transformers `PreTrainedModel`, `PreTrainedTokenizerBase`, and a sequence of smolagents `Tool` instances; `generate()` follows the smolagents `Model` signature.
 
 Repeated valid calls and any call order are allowed. The package does not judge whether an action is useful or whether a final answer is correct. The tools produce observations in Python; there is no model-generated observation schema or separate execution ledger.
 
@@ -58,6 +59,7 @@ Repeated valid calls and any call order are allowed. The package does not judge 
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
+python -m mypy src/smolagents_outlines --ignore-missing-imports
 python -m pip install build
 python -m build
 ```

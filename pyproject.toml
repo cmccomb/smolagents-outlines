@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smolagents-outlines"
-version = "0.1.0"
+version = "0.2.0"
 description = "Schema-constrained tool actions for smolagents using Outlines"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -27,11 +27,11 @@ dependencies = [
     "transformers==4.57.1",
     "accelerate==1.11.0",
     "jsonschema>=4.23,<5",
-    "PyYAML>=6,<7",
+    "PyYAML>=6,<7",  # smolagents 1.26.0 imports yaml for native prompts.
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<9"]
+test = ["pytest>=8,<9", "mypy>=1.15,<2"]
 
 [project.urls]
 Repository = "https://github.com/cmccomb/smolagents-outlines"
@@ -39,6 +39,9 @@ Issues = "https://github.com/cmccomb/smolagents-outlines/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+smolagents_outlines = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
