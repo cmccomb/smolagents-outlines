@@ -1,0 +1,1447 @@
+{
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "package_version": "0.1.0",
+  "source_sha256": "4b02994d1f148bb4eb2eb45372e9d5b17da406f8db329d431b482a937073e52e",
+  "git_commit": "4153da921e30439ea99a675f7d9f4cb31cb44f4f",
+  "git_dirty": false,
+  "dependency_versions": {
+    "smolagents": "1.26.0",
+    "outlines": "1.3.3",
+    "transformers": "4.57.1",
+    "accelerate": "1.11.0",
+    "jsonschema": "4.26.0",
+    "torch": "2.15.0"
+  },
+  "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "tokenizer_revision": null,
+  "device": "mps",
+  "max_steps": 2,
+  "max_new_tokens": 128,
+  "results": [
+    {
+      "agent": "ToolCallingAgent",
+      "case": "enum",
+      "prompt": "Call choose_color(color=\"red\") and report its result.",
+      "expected_answer": "selected red",
+      "generated": [
+        {
+          "raw": "{\"name\": \"choose_color\", \"arguments\": {\"color\": \"red\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "{\"name\": \"choose_color\", \"arguments\": {\"color\": \"red\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "\"red\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "choose_color",
+              "arguments": {
+                "color": "red"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "choose_color",
+              "arguments": {
+                "color": "red"
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "selected red",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "choose_color",
+              "arguments": {
+                "color": "red"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "choose_color",
+              "arguments": {
+                "color": "red"
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "selected red",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "choose_color",
+          "arguments": {
+            "color": "red"
+          },
+          "observation": "selected red",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        },
+        {
+          "name": "choose_color",
+          "arguments": {
+            "color": "red"
+          },
+          "observation": "selected red",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 2,
+      "executed_custom_call_count": 2,
+      "action_errors": [],
+      "answer": "red",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": false,
+      "elapsed_seconds": 12.89
+    },
+    {
+      "agent": "CodeAgent",
+      "case": "enum",
+      "prompt": "Call choose_color(color=\"red\") and report its result.",
+      "expected_answer": "selected red",
+      "generated": [
+        {
+          "raw": "v0 = choose_color(color=\"red\")",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "v0 = choose_color(color=\"red\")",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = choose_color(color=\"red\")"
+          ]
+        },
+        {
+          "raw": "\"selected red\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = choose_color(color=\"red\")",
+            "v0 = choose_color(color=\"red\")"
+          ]
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 1
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 2
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = choose_color(color=\"red\")"
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "choose_color",
+              "source": "choose_color(color='red')"
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nselected red",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = choose_color(color=\"red\")"
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "choose_color",
+              "source": "choose_color(color='red')"
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nselected red",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "choose_color",
+          "arguments": {
+            "color": "red"
+          },
+          "observation": "selected red",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        },
+        {
+          "name": "choose_color",
+          "arguments": {
+            "color": "red"
+          },
+          "observation": "selected red",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 2,
+      "executed_custom_call_count": 2,
+      "action_errors": [],
+      "answer": "selected red",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": true,
+      "elapsed_seconds": 15.49
+    },
+    {
+      "agent": "ToolCallingAgent",
+      "case": "integers",
+      "prompt": "Call multiply(a=3, b=4) and report its result.",
+      "expected_answer": "12",
+      "generated": [
+        {
+          "raw": "{\"name\": \"multiply\", \"arguments\": {\"a\": 3, \"b\": 4}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "{\"name\": \"multiply\", \"arguments\": {\"a\": 3, \"b\": 4}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "\"{\\\"result\\\": 12}\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "multiply",
+              "arguments": {
+                "a": 3,
+                "b": 4
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "multiply",
+              "arguments": {
+                "a": 3,
+                "b": 4
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "12",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "multiply",
+              "arguments": {
+                "a": 3,
+                "b": 4
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "multiply",
+              "arguments": {
+                "a": 3,
+                "b": 4
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "12",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "multiply",
+          "arguments": {
+            "a": 3,
+            "b": 4
+          },
+          "observation": 12,
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        },
+        {
+          "name": "multiply",
+          "arguments": {
+            "a": 3,
+            "b": 4
+          },
+          "observation": 12,
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 2,
+      "executed_custom_call_count": 2,
+      "action_errors": [],
+      "answer": "{\"result\": 12}",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": false,
+      "elapsed_seconds": 40.41
+    },
+    {
+      "agent": "CodeAgent",
+      "case": "integers",
+      "prompt": "Call multiply(a=3, b=4) and report its result.",
+      "expected_answer": "12",
+      "generated": [
+        {
+          "raw": "v0 = 3 - v1\nv1 = 4 - v0\nv2 = v1 * v0\nv3 = v2 - v1\nv4 = v3 * v0\nv5 = v4 - v1\nv6 = v5 * v0\nv7 = v6",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": false,
+          "native_code_identity_valid": true,
+          "adapter_accepted": false,
+          "adapter_error": "ValueError: Variable v1 is not assigned in a successful earlier step",
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": false,
+          "error": "ValueError: Variable v1 is not assigned in a successful earlier step",
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [],
+      "backend_call_count": 1,
+      "backend_raw_output_count": 1,
+      "constrained_format_valid_count": 1,
+      "adapter_accepted_count_including_fallback": 0,
+      "action_adapter_accepted_count": 0,
+      "fallback_adapter_accepted_count": 0,
+      "native_call_count": 0,
+      "native_execution_attempt_step_count": 0,
+      "native_execution_success_step_count": 0,
+      "declared_custom_call_count": 0,
+      "executed_custom_call_count": 0,
+      "action_errors": [],
+      "answer": "None",
+      "error": "AgentGenerationError: Error in generating model output:\nVariable v1 is not assigned in a successful earlier step",
+      "returned_final_response": false,
+      "normal_final_answer": false,
+      "max_steps_fallback": false,
+      "fallback_adapter_succeeded": false,
+      "completed": false,
+      "answer_correct": false,
+      "elapsed_seconds": 34.05
+    },
+    {
+      "agent": "ToolCallingAgent",
+      "case": "chain",
+      "prompt": "Call echo(value=\"hello\"), pass its result to upper, and report the uppercase result.",
+      "expected_answer": "HELLO",
+      "generated": [
+        {
+          "raw": "{\"name\": \"echo\", \"arguments\": {\"value\": \"hello\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "{\"name\": \"upper\", \"arguments\": {\"value\": \"hello\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "\"HELLO\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "echo",
+              "arguments": {
+                "value": "hello"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "echo",
+              "arguments": {
+                "value": "hello"
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "hello",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "upper",
+              "arguments": {
+                "value": "hello"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "upper",
+              "arguments": {
+                "value": "hello"
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "HELLO",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "echo",
+          "arguments": {
+            "value": "hello"
+          },
+          "observation": "hello",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        },
+        {
+          "name": "upper",
+          "arguments": {
+            "value": "hello"
+          },
+          "observation": "HELLO",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 2,
+      "executed_custom_call_count": 2,
+      "action_errors": [],
+      "answer": "HELLO",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": true,
+      "elapsed_seconds": 24.21
+    },
+    {
+      "agent": "CodeAgent",
+      "case": "chain",
+      "prompt": "Call echo(value=\"hello\"), pass its result to upper, and report the uppercase result.",
+      "expected_answer": "HELLO",
+      "generated": [
+        {
+          "raw": "v0 = \"echo(value='hello')\"",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "v0 = \"echo(value='hello')\"",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"echo(value='hello')\""
+          ]
+        },
+        {
+          "raw": "\"HELLO\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"echo(value='hello')\"",
+            "v0 = \"echo(value='hello')\""
+          ]
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 1
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 2
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = \"echo(value='hello')\""
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\necho(value='hello')",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = \"echo(value='hello')\""
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\necho(value='hello')",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 0,
+      "executed_custom_call_count": 0,
+      "action_errors": [],
+      "answer": "HELLO",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": true,
+      "elapsed_seconds": 23.96
+    },
+    {
+      "agent": "ToolCallingAgent",
+      "case": "punctuation",
+      "prompt": "Call echo(value=\"A+B (ok)\") and report its exact result.",
+      "expected_answer": "A+B (ok)",
+      "generated": [
+        {
+          "raw": "{\"name\": \"echo\", \"arguments\": {\"value\": \"A+B (ok)\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "{\"name\": \"final_answer\", \"arguments\": {\"answer\": \"A+B (ok)\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "echo",
+              "arguments": {
+                "value": "A+B (ok)"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "echo",
+              "arguments": {
+                "value": "A+B (ok)"
+              }
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "A+B (ok)",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "final_answer",
+              "arguments": {
+                "answer": "A+B (ok)"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "A+B (ok)",
+          "is_final_answer": true,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "echo",
+          "arguments": {
+            "value": "A+B (ok)"
+          },
+          "observation": "A+B (ok)",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 2,
+      "backend_raw_output_count": 2,
+      "constrained_format_valid_count": 2,
+      "adapter_accepted_count_including_fallback": 2,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 0,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 1,
+      "executed_custom_call_count": 1,
+      "action_errors": [],
+      "answer": "A+B (ok)",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": true,
+      "max_steps_fallback": false,
+      "fallback_adapter_succeeded": false,
+      "completed": true,
+      "answer_correct": true,
+      "elapsed_seconds": 6.57
+    },
+    {
+      "agent": "CodeAgent",
+      "case": "punctuation",
+      "prompt": "Call echo(value=\"A+B (ok)\") and report its exact result.",
+      "expected_answer": "A+B (ok)",
+      "generated": [
+        {
+          "raw": "v0 = \"A+B (ok)\"",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "echo(value=v0)",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"A+B (ok)\""
+          ]
+        },
+        {
+          "raw": "\"Echo of A+B (ok)\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"A+B (ok)\"",
+            "echo(value=v0)"
+          ]
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 1
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 2
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = \"A+B (ok)\""
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nA+B (ok)",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "echo(value=v0)"
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [
+            {
+              "name": "echo",
+              "source": "echo(value=v0)"
+            }
+          ],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nA+B (ok)",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [
+        {
+          "name": "echo",
+          "arguments": {
+            "value": "A+B (ok)"
+          },
+          "observation": "A+B (ok)",
+          "runtime_schema_valid": true,
+          "runtime_native_type_valid": true
+        }
+      ],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 1,
+      "executed_custom_call_count": 1,
+      "action_errors": [],
+      "answer": "Echo of A+B (ok)",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": false,
+      "elapsed_seconds": 13.59
+    },
+    {
+      "agent": "ToolCallingAgent",
+      "case": "no_tools",
+      "prompt": "Use final_answer to return the string \"ready\".",
+      "expected_answer": "ready",
+      "generated": [
+        {
+          "raw": "{\"name\": \"final_answer\", \"arguments\": {\"answer\": \"ready\"}}",
+          "kind": "tool_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "final_answer",
+              "arguments": {
+                "answer": "ready"
+              }
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "ready",
+          "is_final_answer": true,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        }
+      ],
+      "tool_events": [],
+      "backend_call_count": 1,
+      "backend_raw_output_count": 1,
+      "constrained_format_valid_count": 1,
+      "adapter_accepted_count_including_fallback": 1,
+      "action_adapter_accepted_count": 1,
+      "fallback_adapter_accepted_count": 0,
+      "native_call_count": 1,
+      "native_execution_attempt_step_count": 1,
+      "native_execution_success_step_count": 1,
+      "declared_custom_call_count": 0,
+      "executed_custom_call_count": 0,
+      "action_errors": [],
+      "answer": "ready",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": true,
+      "max_steps_fallback": false,
+      "fallback_adapter_succeeded": false,
+      "completed": true,
+      "answer_correct": true,
+      "elapsed_seconds": 1.85
+    },
+    {
+      "agent": "CodeAgent",
+      "case": "no_tools",
+      "prompt": "Use final_answer to return the string \"ready\".",
+      "expected_answer": "ready",
+      "generated": [
+        {
+          "raw": "v0 = \"Ready\"",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": []
+        },
+        {
+          "raw": "v0 = \"Ready\"",
+          "kind": "code_action",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": true,
+          "static_valid": true,
+          "native_code_identity_valid": true,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"Ready\""
+          ]
+        },
+        {
+          "raw": "\"ready\"",
+          "kind": "fallback",
+          "format_valid": true,
+          "format_error": null,
+          "python_syntax_valid": null,
+          "static_valid": null,
+          "native_code_identity_valid": null,
+          "adapter_accepted": true,
+          "adapter_error": null,
+          "prior_successful_code": [
+            "v0 = \"Ready\"",
+            "v0 = \"Ready\""
+          ]
+        }
+      ],
+      "adapter_calls": [
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 0
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 1
+        },
+        {
+          "accepted": true,
+          "error": null,
+          "backend_call_count": 1,
+          "prior_successful_code_count": 2
+        }
+      ],
+      "native_steps": [
+        {
+          "step_number": 1,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = \"Ready\""
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nReady",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 2,
+          "native_calls": [
+            {
+              "name": "python_interpreter",
+              "arguments": "v0 = \"Ready\""
+            }
+          ],
+          "native_call_origin": "memory_step",
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": "Execution logs:\nLast output from code snippet:\nReady",
+          "is_final_answer": false,
+          "error": null,
+          "is_max_steps_fallback": false,
+          "native_execution_attempted": true,
+          "native_execution_succeeded": true
+        },
+        {
+          "step_number": 3,
+          "native_calls": [],
+          "native_call_origin": null,
+          "declared_custom_calls": [],
+          "code_parse_error": null,
+          "observation": null,
+          "is_final_answer": false,
+          "error": {
+            "type": "AgentMaxStepsError",
+            "message": "Reached max steps."
+          },
+          "is_max_steps_fallback": true,
+          "native_execution_attempted": false,
+          "native_execution_succeeded": false
+        }
+      ],
+      "tool_events": [],
+      "backend_call_count": 3,
+      "backend_raw_output_count": 3,
+      "constrained_format_valid_count": 3,
+      "adapter_accepted_count_including_fallback": 3,
+      "action_adapter_accepted_count": 2,
+      "fallback_adapter_accepted_count": 1,
+      "native_call_count": 2,
+      "native_execution_attempt_step_count": 2,
+      "native_execution_success_step_count": 2,
+      "declared_custom_call_count": 0,
+      "executed_custom_call_count": 0,
+      "action_errors": [],
+      "answer": "ready",
+      "error": null,
+      "returned_final_response": true,
+      "normal_final_answer": false,
+      "max_steps_fallback": true,
+      "fallback_adapter_succeeded": true,
+      "completed": false,
+      "answer_correct": true,
+      "elapsed_seconds": 8.88
+    }
+  ]
+}
