@@ -69,6 +69,25 @@ def _exact_scalar(value: object) -> str | None:
     return None
 
 
+def _python_type_matches(value: object, schema: Mapping[str, object]) -> bool:
+    """Keep enum literals consistent with the Python type received by a tool."""
+    declared = schema.get("type")
+    if declared is None:
+        return True
+    types = [declared] if isinstance(declared, str) else declared
+    if not isinstance(types, list):
+        return False
+    return any(
+        (item == "string" and isinstance(value, str))
+        or (item == "integer" and isinstance(value, int) and not isinstance(value, bool))
+        or (item == "number" and isinstance(value, (int, float))
+            and not isinstance(value, bool))
+        or (item == "boolean" and isinstance(value, bool))
+        or (item == "null" and value is None)
+        for item in types
+    )
+
+
 def _scalar_literal(schema: Mapping[str, object]) -> str | None:
     """Return only literal forms known to satisfy a scalar JSON schema."""
     if "enum" in schema or "const" in schema:
@@ -77,7 +96,8 @@ def _scalar_literal(schema: Mapping[str, object]) -> str | None:
             return None
         validator = Draft202012Validator(dict(schema))
         return _either(*(
-            _exact_scalar(value) for value in values if validator.is_valid(value)
+            _exact_scalar(value) for value in values
+            if _python_type_matches(value, schema) and validator.is_valid(value)
         ))
 
     if set(schema) - _SCALAR_KEYS - _ANNOTATIONS:

@@ -255,6 +255,14 @@ def test_code_regex_supports_structured_and_free_form_final_answers():
     assert re.fullmatch(default_pattern, 'final_answer(answer="ok")')
 
 
+def test_code_regex_integer_enum_uses_python_int_literals():
+    tool = EchoTool()
+    tool.inputs = {"value": {"type": "integer", "enum": [1.0, 2]}}
+    pattern = build_code_regex(_action_schema([tool], None, None))
+    assert re.fullmatch(pattern, "echo(value=2)")
+    assert not re.fullmatch(pattern, "echo(value=1.0)")
+
+
 @pytest.mark.parametrize(
     "invalid",
     [
