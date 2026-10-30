@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import json
 import keyword
 import math
@@ -10,6 +9,7 @@ import re
 import uuid
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
+from types import SimpleNamespace
 from typing import Any, NoReturn, cast
 
 import outlines
@@ -17,6 +17,7 @@ from jsonschema import Draft202012Validator
 from outlines.inputs import Chat
 from outlines.types import JsonSchema, Regex
 from smolagents import Tool
+from smolagents.local_python_executor import BASE_PYTHON_TOOLS, fix_final_answer_code
 from smolagents.tools import validate_tool_arguments
 from smolagents.models import (
     ChatMessage,
@@ -27,9 +28,11 @@ from smolagents.models import (
     get_clean_message_list,
     tool_role_conversions,
 )
+from smolagents.utils import parse_code_blobs
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 from ._code_regex import build_code_regex
+from ._code_static import validate_code_action
 
 
 _SCALAR_TYPES = {"string", "integer", "number", "boolean", "null"}
@@ -38,6 +41,8 @@ _SCHEMA_KEYS = {
     "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength",
     "pattern",
 }
+_MAX_EXPANDED_INTEGER_CHOICES = 256
+_CODE_BLOCK = re.compile(r"\A<code>\n(?P<code>[\s\S]*?)\n</code>\Z")
 
 
 def _schema_fingerprint(inputs: Mapping[str, Mapping[str, object]]) -> str:
@@ -59,8 +64,171 @@ def _check_finite_numbers(value: object) -> None:
             _check_finite_numbers(item)
 
 
+def _native_code_message(code: str) -> str:
+    """Fail if native CodeAgent would parse or rewrite this generated block."""
+    content = f"<code>\n{code}\n</code>"
+    parsed = parse_code_blobs(content, ("<code>", "</code>"))
+    if parsed != code or fix_final_answer_code(parsed) != code:
+        raise ValueError("Native CodeAgent would change the generated code")
+    return content
+
+
+def _message_text(message: ChatMessage) -> str:
+    if isinstance(message.content, str):
+        return message.content
+    if isinstance(message.content, list):
+        return "\n".join(
+            part["text"] for part in message.content
+            if isinstance(part, dict) and part.get("type") == "text"
+            and isinstance(part.get("text"), str)
+        )
+    return ""
+
+
+def _prior_successful_code(messages: Sequence[ChatMessage]) -> list[str]:
+    """Read successful CodeAgent blocks from this run's native message history."""
+    successful: list[str] = []
+    pending: str | None = None
+    observed = False
+    errored = False
+
+    def finish_pending() -> None:
+        nonlocal pending, observed, errored
+        if pending is not None and observed and not errored:
+            successful.append(pending)
+        pending = None
+        observed = False
+        errored = False
+
+    for message in messages:
+        content = _message_text(message)
+        if message.role == MessageRole.USER and content.startswith("New task:\n"):
+            successful.clear()
+            pending = None
+            observed = False
+            errored = False
+        elif message.role == MessageRole.ASSISTANT:
+            finish_pending()
+            match = _CODE_BLOCK.fullmatch(content.strip())
+            pending = match.group("code") if match is not None else None
+        elif message.role == MessageRole.TOOL_RESPONSE and pending is not None:
+            if content.startswith("Observation:\n"):
+                observed = True
+            else:
+                errored = True
+    finish_pending()
+    return successful
+
+
 def _python_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier() and not keyword.iskeyword(name)
+
+
+def _expand_finite_integer_choices(schema: dict[str, object]) -> dict[str, object]:
+    """Represent small integer intervals as choices the pinned decoder enforces."""
+    declared = schema.get("type")
+    nullable_integer = (
+        isinstance(declared, list)
+        and all(isinstance(item, str) for item in declared)
+        and set(declared) == {"integer", "null"}
+    )
+    if (
+        (declared == "integer" or nullable_integer)
+        and "enum" not in schema and "const" not in schema
+    ):
+        lower: int | None = None
+        upper: int | None = None
+        for key in ("minimum", "exclusiveMinimum"):
+            value = schema.get(key)
+            if type(value) is int or (type(value) is float and math.isfinite(value)):
+                candidate = math.ceil(value) if key == "minimum" else math.floor(value) + 1
+                lower = candidate if lower is None else max(lower, candidate)
+        for key in ("maximum", "exclusiveMaximum"):
+            value = schema.get(key)
+            if type(value) is int or (type(value) is float and math.isfinite(value)):
+                candidate = math.floor(value) if key == "maximum" else math.ceil(value) - 1
+                upper = candidate if upper is None else min(upper, candidate)
+        if lower is not None and upper is not None:
+            if lower <= upper and upper - lower < _MAX_EXPANDED_INTEGER_CHOICES:
+                schema["enum"] = list(range(lower, upper + 1)) + (
+                    [None] if nullable_integer else []
+                )
+    for key in ("properties", "$defs", "patternProperties"):
+        children = schema.get(key)
+        if isinstance(children, dict):
+            schema[key] = {
+                name: _expand_finite_integer_choices(child)
+                if isinstance(child, dict) else child
+                for name, child in children.items()
+            }
+    for key in ("items", "additionalProperties", "not", "if", "then", "else"):
+        child = schema.get(key)
+        if isinstance(child, dict):
+            schema[key] = _expand_finite_integer_choices(child)
+    for key in ("oneOf", "anyOf", "allOf", "prefixItems"):
+        children = schema.get(key)
+        if isinstance(children, list):
+            schema[key] = [
+                _expand_finite_integer_choices(child)
+                if isinstance(child, dict) else child
+                for child in children
+            ]
+    return schema
+
+
+def _native_accepts_choice(spec: Mapping[str, object], value: object) -> bool:
+    """Check the Python value that smolagents would pass to a scalar tool input."""
+    schema_only_tool = cast(Tool, SimpleNamespace(inputs={"value": dict(spec)}))
+    try:
+        validate_tool_arguments(schema_only_tool, {"value": value})
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _constrain_discrete_input_choices(
+    schema: dict[str, object], spec: Mapping[str, object], label: str
+) -> dict[str, object]:
+    """Keep decoder choices valid under both JSON Schema and native Python types."""
+    if "enum" not in schema and "const" not in schema:
+        return schema
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    invalid = object()
+
+    def valid_choice(value: object) -> object:
+        candidates = [value]
+        if type(value) is float and math.isfinite(value) and value.is_integer():
+            candidates.append(int(value))
+        for candidate in candidates:
+            try:
+                _check_finite_numbers(candidate)
+            except ValueError:
+                continue
+            if validator.is_valid(candidate) and _native_accepts_choice(spec, candidate):
+                return candidate
+        return invalid
+
+    if "enum" in schema:
+        choices: list[object] = []
+        seen: set[str] = set()
+        for original in cast(list[object], schema["enum"]):
+            candidate = valid_choice(original)
+            if candidate is invalid:
+                continue
+            identity = json.dumps(candidate, sort_keys=True, allow_nan=False)
+            if identity not in seen:
+                choices.append(candidate)
+                seen.add(identity)
+        if not choices:
+            raise ValueError(f"{label} has no JSON- and Python-valid enum choices")
+        schema["enum"] = choices
+    if "const" in schema:
+        candidate = valid_choice(schema["const"])
+        if candidate is invalid:
+            raise ValueError(f"{label} has no JSON- and Python-valid const value")
+        schema["const"] = candidate
+    return schema
 
 
 def _input_schema(
@@ -85,7 +253,9 @@ def _input_schema(
         types = list(dict.fromkeys([*types, "null"]))
     result = {key: value for key, value in spec.items() if key in _SCHEMA_KEYS}
     result["type"] = types[0] if len(types) == 1 else types
-    return result
+    result = _constrain_discrete_input_choices(result, spec, f"{tool_name}.{arg_name}")
+    # Outlines 1.3.3 ignores numeric bounds while building its JSON decoder.
+    return _expand_finite_integer_choices(result)
 
 
 def _action_schema(
@@ -128,7 +298,7 @@ def _action_schema(
     if final_answer_schema is not None:
         if not isinstance(final_answer_schema, dict):
             raise ValueError("final_answer_schema must be a JSON Schema object")
-        answer = deepcopy(final_answer_schema)
+        answer = _expand_finite_integer_choices(deepcopy(final_answer_schema))
         Draft202012Validator.check_schema(answer)
     elif final_answers is not None:
         if not final_answers or not all(isinstance(x, str) for x in final_answers):
@@ -243,6 +413,12 @@ class OutlinesToolModel(Model):
             content = answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
             return ChatMessage(role=MessageRole.ASSISTANT, content=content, raw=raw)
         if tools_to_call_from is None:
+            collisions = set(self.tool_by_name).intersection(BASE_PYTHON_TOOLS)
+            if collisions:
+                raise RuntimeError(
+                    "CodeAgent tool names conflict with native Python functions: "
+                    + ", ".join(sorted(collisions))
+                )
             catalog = "\n".join(
                 f"- {tool.name}: {tool.description}; inputs: "
                 f"{json.dumps(tool.inputs, sort_keys=True)}"
@@ -253,7 +429,9 @@ class OutlinesToolModel(Model):
                 "assign v0, v1, and other v-numbered variables and chain "
                 "multiple direct tool calls. Each tool argument must be a "
                 "v-numbered variable or a literal shaped like its declared "
-                "type. Do not use loops, conditionals, imports, nested calls, "
+                "type. Assign a variable earlier in this run before "
+                "using it; unknown tool outputs can only feed plain typed "
+                "arguments. Do not use loops, conditionals, imports, nested calls, "
                 "or bare expressions. Call final_answer(answer=...) when ready. "
                 "Available tools:\n"
                 + catalog + "\n- final_answer: return the answer; arguments: "
@@ -275,10 +453,14 @@ class OutlinesToolModel(Model):
             )
             if re.fullmatch(pattern, raw) is None:
                 raise ValueError("CodeAgent generation ended outside the Python constraint")
-            ast.parse(raw)
+            validate_code_action(
+                raw, self.argument_schemas, self.tool_by_name,
+                prior_successful_code=_prior_successful_code(messages),
+            )
+            content = _native_code_message(raw)
             return ChatMessage(
                 role=MessageRole.ASSISTANT,
-                content=f"<code>\n{raw}\n</code>", raw=raw,
+                content=content, raw=raw,
             )
         clean[-1]["content"] += (
             "\n\nReturn exactly one JSON object with name and arguments for "

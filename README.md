@@ -25,7 +25,7 @@ agent = ToolCallingAgent(tools=tools, model=model, max_steps=8)
 answer = agent.run("Use the available tools to answer the question.")
 ```
 
-The default `final_answer` accepts any JSON string, so the answer can vary with the task. To restrict it to known choices, pass `final_answers`:
+The default generated `final_answer` action accepts any JSON string, so the answer can vary with the task. To restrict the value generated for that action, pass `final_answers`:
 
 ```python
 model = OutlinesToolModel(
@@ -34,7 +34,7 @@ model = OutlinesToolModel(
 )
 ```
 
-For a structured result, pass a JSON Schema as `final_answer_schema` instead:
+To constrain the generated final-answer value to a structure, pass a JSON Schema as `final_answer_schema` instead:
 
 ```python
 answer_schema = {
@@ -49,7 +49,7 @@ answer_schema = {
 model = OutlinesToolModel(hf_model, tokenizer, tools, final_answer_schema=answer_schema)
 ```
 
-When the agent calls `final_answer` normally, it returns a Python dictionary with those fields. The schema checks its shape and types; the agent still has to derive the values from tool observations. `final_answers` and `final_answer_schema` are mutually exclusive.
+For a normal `ToolCallingAgent` final-answer action, the parsed generated `answer` is a Python dictionary with those fields and is checked against the schema before the model returns the action. The agent still has to derive the values from tool observations. Native state substitution can change the value after generation, and the max-step fallback returns a structured answer as JSON text. `final_answers` and `final_answer_schema` are mutually exclusive.
 
 The same model works with smolagents' native `CodeAgent`:
 
@@ -59,13 +59,13 @@ from smolagents import CodeAgent
 agent = CodeAgent(tools=tools, model=model, max_steps=8)
 ```
 
-`ToolCallingAgent` receives native tool-call objects. `CodeAgent` receives a complete `<code>` block. Its Outlines regex permits a small straight-line Python subset: up to eight assignments or direct tool calls, with intermediate variables `v0` through `v31`. Each declared tool call uses its exact keyword arguments; each argument is a variable or a printable-ASCII literal shaped like the declared scalar type. Enum literals are limited to the declared choices. Generation happens once per step. A final full-match and Python parse check fail closed if generation is truncated or a backend violates the pattern; there is no retry or repair. Give the model and agent the same `tools` list. Leave CodeAgent's default code tags and `use_structured_outputs_internally=False` in place.
+`ToolCallingAgent` receives native tool-call objects. `CodeAgent` receives a complete `<code>` block. Its Outlines regex permits a small straight-line Python subset: up to eight assignments or direct tool calls per step, with intermediate variables `v0` through `v31`. Each declared tool call uses its exact keyword arguments; each argument is a variable or a printable-ASCII literal shaped like the declared scalar type. Enum literals are limited to the declared choices. Generation happens once per step. A full regex match, static value check, and exact round trip through smolagents' default code parser reject invalid or rewritten output before execution; there is no retry or repair. Variable references must be assigned earlier in the current block or a successful previous block in the same run. Give the model and agent the same `tools` list. The model cannot inspect the tools supplied separately to `CodeAgent`. Leave CodeAgent's default code tags and `use_structured_outputs_internally=False` in place.
 
-## Guarantee and scope
+## Generation-time contract
 
-For `ToolCallingAgent`, `OutlinesToolModel` builds a JSON schema from the supplied tools' declared `Tool.inputs`, constrains generation with Outlines, and validates the result and native Python argument types before returning an action. It returns a valid generated action or raises an error before execution. Unsupported input schemas fail during setup. The current implementation supports JSON scalar tool arguments (`string`, `integer`, `number`, `boolean`, and `null`). Native state-variable substitution can change a string argument after generation, so this guarantee applies to the generated call.
+For `ToolCallingAgent`, `OutlinesToolModel` builds a JSON schema from the supplied tools' declared `Tool.inputs`, constrains generation with Outlines, and validates the result and native Python argument types before returning an action. It returns a schema-valid generated action or raises an error before execution. Unsupported input schemas fail during setup. The current implementation supports JSON scalar tool arguments (`string`, `integer`, `number`, `boolean`, and `null`). Enum and constant choices that conflict with the full input schema or native Python type are removed or rejected before generation. Small bounded integer intervals (up to 256 values, including nullable intervals) become exact decoder choices. Other numeric bounds are checked after generation, before an action is returned, because the pinned Outlines decoder does not enforce them while sampling. [Smolagents can replace a generated string argument with a state value](https://huggingface.co/docs/smolagents/en/reference/agents) before calling the tool. The replacement is outside this model's generation-time check and may violate the tool schema.
 
-For `CodeAgent`, generation is constrained to that Python subset. The regex fixes direct tool names, argument names and count, and literal shapes. It does not prove that a variable is defined or that its runtime value matches the argument schema. Numeric ranges and arbitrary string patterns also need runtime checking if they matter. The native Python executor handles execution and observations; this package does not add an executor or run ledger. A structured final-answer schema is guaranteed by Outlines in `ToolCallingAgent`; a variable passed to `CodeAgent`'s `final_answer` has no generation-time value guarantee.
+For `CodeAgent`, the regex fixes direct tool names, argument names and count, and supported literal forms. A pre-execution static check rejects unassigned variables, checks locally known values against tool and final-answer schemas, and checks declared tool output types when chaining into plain typed inputs. An unknown tool result cannot prove an enum, bound, pattern, or structured schema, so those variable uses are rejected. Tool output declarations may differ from actual runtime values. The model rejects CodeAgent tool names that collide with the native executor's built-in Python functions. It cannot inspect `CodeAgent` tools, additional executor functions, or `additional_args` supplied separately to the agent; those can change what a generated function name resolves to at execution. Use the same tools and avoid overriding their names. The native Python executor handles execution and observations; this package adds no executor, run ledger, or runtime tool guard. The configured final-answer constraint checks generated `ToolCallingAgent` actions and fallbacks; for `CodeAgent`, it checks values that can be proved from the generated block.
 
 The package ships a `py.typed` marker. The public constructor accepts a Transformers `PreTrainedModel`, `PreTrainedTokenizerBase`, and a sequence of smolagents `Tool` instances; `generate()` follows the smolagents `Model` signature.
 
