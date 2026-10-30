@@ -1,6 +1,6 @@
 # smolagents-outlines
 
-Constrain the tool action a smolagents model generates at each agent step with an [Outlines](https://dottxt-ai.github.io/outlines/) JSON schema. The reusable product is a `smolagents.Model` that you pass to an agent.
+Constrain the tool action a smolagents model generates at each agent step with [Outlines](https://dottxt-ai.github.io/outlines/) output types derived from tool schemas. The reusable product is a `smolagents.Model` that you pass to an agent.
 
 ## Install
 

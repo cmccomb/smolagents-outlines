@@ -223,6 +223,8 @@ def build_code_regex(action_schema: Mapping[str, object]) -> str:
         if (not isinstance(name, str) or not name.isidentifier() or
                 keyword.iskeyword(name) or name in seen):
             raise ValueError(f"Invalid or duplicate tool name: {name!r}")
+        if re.fullmatch(_VAR, name):
+            raise ValueError(f"Tool name conflicts with CodeAgent variables: {name!r}")
         seen.add(name)
         call = _call(name, arguments, final=name == "final_answer")
         if name == "final_answer":

@@ -263,6 +263,13 @@ def test_code_regex_integer_enum_uses_python_int_literals():
     assert not re.fullmatch(pattern, "echo(value=1.0)")
 
 
+def test_code_regex_rejects_tool_name_that_variables_can_shadow():
+    tool = EchoTool()
+    tool.name = "v0"
+    with pytest.raises(ValueError, match="conflicts with CodeAgent variables"):
+        build_code_regex(_action_schema([tool], None, None))
+
+
 @pytest.mark.parametrize(
     "invalid",
     [
