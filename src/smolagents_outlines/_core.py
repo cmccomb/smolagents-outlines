@@ -17,6 +17,7 @@ from jsonschema import Draft202012Validator
 from outlines.inputs import Chat
 from outlines.types import JsonSchema, Regex
 from smolagents import Tool
+from smolagents.tools import validate_tool_arguments
 from smolagents.models import (
     ChatMessage,
     ChatMessageToolCall,
@@ -92,8 +93,6 @@ def _action_schema(
     final_answer_schema: dict[str, object] | None,
     final_answers: Sequence[str] | None,
 ) -> dict[str, object]:
-    if not tools:
-        raise ValueError("At least one custom tool is required")
     if final_answer_schema is not None and final_answers is not None:
         raise ValueError("Use final_answer_schema or final_answers, not both")
     names = [tool.name for tool in tools]
@@ -171,6 +170,7 @@ class OutlinesToolModel(Model):
     ) -> None:
         super().__init__(model_id="outlines-transformers-smolagents")
         self.tools = list(tools)
+        self.tool_by_name = {tool.name: tool for tool in self.tools}
         self.tool_inputs = {
             tool.name: _schema_fingerprint(tool.inputs) for tool in self.tools
         }
@@ -182,6 +182,11 @@ class OutlinesToolModel(Model):
             )
             for branch in cast(list[dict[str, Any]], self.schema["oneOf"])
         }
+        self.final_answer_schema = cast(
+            dict[str, object],
+            cast(dict[str, Any], self.argument_schemas["final_answer"]["properties"])["answer"],
+        )
+        self.final_answer_validator = Draft202012Validator(self.final_answer_schema)
         # Outlines' annotation omits fast tokenizers, which its adapter accepts.
         self.outlines_model = outlines.from_transformers(hf_model, tokenizer)  # type: ignore[arg-type]
         self.max_new_tokens = max_new_tokens
@@ -207,13 +212,15 @@ class OutlinesToolModel(Model):
         tools_to_call_from: list[Tool] | None = None,
         **kwargs: Any,
     ) -> ChatMessage:
-        if not stop_sequences or stop_sequences[:2] != ["Observation:", "Calling tools:"]:
-            raise RuntimeError("Only agent action generation is supported")
         if response_format is not None:
             raise RuntimeError("CodeAgent structured-output mode is not supported")
         if kwargs:
             raise TypeError(f"Unsupported generation arguments: {sorted(kwargs)}")
-        if tools_to_call_from is not None:
+        is_action = bool(stop_sequences and stop_sequences[:2] == ["Observation:", "Calling tools:"])
+        is_fallback = stop_sequences is None and tools_to_call_from is None
+        if not is_action and not is_fallback:
+            raise RuntimeError("Only agent actions and final-answer fallback are supported")
+        if is_action and tools_to_call_from is not None:
             self.validate_tools(tools_to_call_from, include_final_answer=True)
         self.validate_tools(self.tools)
 
@@ -221,6 +228,20 @@ class OutlinesToolModel(Model):
             messages, role_conversions=tool_role_conversions,
             flatten_messages_as_text=True,
         )
+        if is_fallback:
+            clean[-1]["content"] += (
+                "\n\nReturn only a JSON value matching this final-answer schema: "
+                + json.dumps(self.final_answer_schema, sort_keys=True)
+            )
+            raw = self.outlines_model(
+                Chat(clean), output_type=JsonSchema(self.final_answer_schema),
+                max_new_tokens=self.max_new_tokens, do_sample=False,
+            )
+            answer = json.loads(raw, parse_constant=_reject_nonfinite_constant)
+            _check_finite_numbers(answer)
+            self.final_answer_validator.validate(answer)
+            content = answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
+            return ChatMessage(role=MessageRole.ASSISTANT, content=content, raw=raw)
         if tools_to_call_from is None:
             catalog = "\n".join(
                 f"- {tool.name}: {tool.description}; inputs: "
@@ -274,6 +295,8 @@ class OutlinesToolModel(Model):
         self.validator.validate(action)
         name = cast(str, action["name"])
         arguments = cast(dict[str, object], action["arguments"])
+        if name != "final_answer":
+            validate_tool_arguments(self.tool_by_name[name], arguments)
         return ChatMessage(
             role=MessageRole.ASSISTANT, content=raw, raw=raw,
             tool_calls=[ChatMessageToolCall(

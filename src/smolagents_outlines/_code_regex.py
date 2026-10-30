@@ -6,13 +6,14 @@ assignment such as ``v2 = v0 + 1``, or a direct declared tool call.
 ``final_answer(answer=...)`` may be the final statement. Tool calls use every
 declared keyword in schema order, with either a ``vN`` reference or a scalar
 Python literal admitted by that input's schema. String literals use double
-quotes and a deliberately small ASCII alphabet; escapes, multiline strings,
+quotes and printable ASCII except quotes and backslashes; escapes, multiline strings,
 imports, indexing, control flow, and arbitrary Python are outside this subset.
 
 A variable reference has valid call *syntax*, but its runtime value cannot be
 checked by a generation-time regex. Most numeric bounds, arbitrary string
 patterns, and other constraints that cannot be encoded here remove the literal
-branch; the variable branch remains. No wildcard code branch is added.
+branch; the variable branch remains. Variables are limited to ``v0`` through
+``v31`` to keep the generated language bounded. No wildcard code branch is added.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ from collections.abc import Mapping
 from jsonschema import Draft202012Validator
 
 
-_VAR = r"v[0-9]+"
-_SAFE_CHARS = r"[A-Za-z0-9 _.,:/!?'-]"
+_VAR = r"v(?:[0-9]|[12][0-9]|3[01])"
+_SAFE_CHARS = r"[\x20-\x21\x23-\x5B\x5D-\x7E]"
 _SAFE_STRING = '"' + _SAFE_CHARS + '*"'
 _INTEGER = r"-?(?:0|[1-9][0-9]*)"
 _NUMBER = r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?"
@@ -231,11 +232,10 @@ def build_code_regex(action_schema: Mapping[str, object]) -> str:
             final_call = call
         else:
             custom.append(call)
-    if not custom or final_call is None:
-        raise ValueError("Expected custom tools and one final_answer branch")
+    if final_call is None:
+        raise ValueError("Expected one final_answer branch")
 
     tool_call = _either(*custom)
-    assert tool_call is not None
     numeric_atom = _either(_VAR, _NUMBER)
     assert numeric_atom is not None
     arithmetic = numeric_atom + r" [+*/-] " + numeric_atom

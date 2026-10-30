@@ -253,6 +253,10 @@ def test_code_regex_supports_structured_and_free_form_final_answers():
 
     default_pattern = build_code_regex(_action_schema([EchoTool()], None, None))
     assert re.fullmatch(default_pattern, 'final_answer(answer="ok")')
+    assert re.fullmatch(default_pattern, 'echo(value="https://example.org/?a=1&b=two#part")')
+    assert not re.fullmatch(default_pattern, 'echo(value="bad\\"; bad()")')
+    assert re.fullmatch(default_pattern, 'echo(value=v31)')
+    assert not re.fullmatch(default_pattern, 'echo(value=v32)')
 
 
 def test_code_regex_integer_enum_uses_python_int_literals():
