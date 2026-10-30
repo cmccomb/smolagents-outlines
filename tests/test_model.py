@@ -1,16 +1,20 @@
 """Contract tests for generated actions and agent integration."""
 
 import json
+import re
 from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
 from jsonschema import ValidationError
+from outlines.types import Regex
 from smolagents import CodeAgent, Tool, ToolCallingAgent
 from smolagents.models import ChatMessage, MessageRole
 from smolagents.utils import AgentGenerationError
 
 from smolagents_outlines import OutlinesToolModel
+from smolagents_outlines._code_regex import build_code_regex
+from smolagents_outlines._core import _action_schema
 
 
 class EchoTool(Tool):
@@ -52,9 +56,11 @@ class FakeOutlines:
     def __init__(self, *responses):
         self.responses = iter(responses)
         self.inputs = []
+        self.kwargs = []
 
     def __call__(self, *args, **kwargs):
         self.inputs.append(args[0])
+        self.kwargs.append(kwargs)
         return next(self.responses)
 
 
@@ -93,9 +99,7 @@ def _runtime_tools(tool):
 
 
 def _code_model(monkeypatch, code, tools):
-    # CodeAgent retries invalid code twice before failing closed.
-    response = json.dumps({"code": code})
-    fake = FakeOutlines(response, response, response)
+    fake = FakeOutlines(code)
     monkeypatch.setattr(
         "smolagents_outlines._core.outlines.from_transformers",
         lambda *_: fake,
@@ -170,9 +174,9 @@ def test_native_tool_agent_rejects_invalid_generated_action(make_model):
 def test_code_agent_chains_multiple_tools_with_python_variables(monkeypatch):
     echo, upper = CountingEchoTool(), UpperTool()
     code = (
-        'first = echo(value="hello")\n'
-        'second = upper(first)\n'
-        'final_answer(second)'
+        'v0 = echo(value="hello")\n'
+        "v1 = upper(value=v0)\n"
+        "final_answer(answer=v1)"
     )
     model = _code_model(monkeypatch, code, [echo, upper])
     agent = CodeAgent(tools=[echo, upper], model=model, max_steps=1)
@@ -180,51 +184,98 @@ def test_code_agent_chains_multiple_tools_with_python_variables(monkeypatch):
     assert agent.run("Uppercase an echo") == "HELLO"
     assert echo.calls == ["hello"]
     assert upper.calls == ["hello"]
+    assert len(model.outlines_model.inputs) == 1
+    assert isinstance(model.outlines_model.kwargs[0]["output_type"], Regex)
 
 
-def test_code_agent_rejects_invalid_direct_call_before_any_execution(monkeypatch):
+def test_code_agent_rejects_invalid_backend_output_before_any_execution(monkeypatch):
     echo = CountingEchoTool()
-    code = 'echo(value="first")\necho(unknown="second")'
+    code = 'v0 = echo(value="must-not-run")\nimport os\nfinal_answer(answer=v0)'
     model = _code_model(monkeypatch, code, [echo])
     agent = CodeAgent(tools=[echo], model=model, max_steps=1)
 
-    with pytest.raises(AgentGenerationError, match="unknown or duplicate keyword"):
-        agent.run("Call echo twice")
+    with pytest.raises(AgentGenerationError):
+        agent.run("Answer")
     assert echo.calls == []
+    assert len(model.outlines_model.inputs) == 1
 
 
-def test_code_agent_regenerates_invalid_python_before_execution(monkeypatch):
+def test_code_agent_rejects_invalid_syntax_without_retry(monkeypatch):
     echo = CountingEchoTool()
-    invalid = 'echo(value="must-not-run")\nif True print("invalid")'
-    valid = 'final_answer("ok")'
-    fake = FakeOutlines(
-        json.dumps({"code": invalid}),
-        json.dumps({"code": valid}),
+    invalid = 'v0 = echo(value="must-not-run")\nfinal_answer(answer=v0'
+    model = _code_model(
+        monkeypatch, invalid, [echo],
     )
-    monkeypatch.setattr(
-        "smolagents_outlines._core.outlines.from_transformers",
-        lambda *_: fake,
-    )
-    model = OutlinesToolModel(None, None, [echo])
     agent = CodeAgent(tools=[echo], model=model, max_steps=1)
 
-    assert agent.run("Answer after correcting syntax") == "ok"
-    assert len(fake.inputs) == 2
+    with pytest.raises(AgentGenerationError):
+        agent.run("Answer")
+    assert len(model.outlines_model.inputs) == 1
     assert echo.calls == []
-    action = agent.memory.steps[1]
-    assert action.model_output_message.content == f"<code>\n{valid}\n</code>"
 
 
-def test_code_agent_accepts_dynamic_tool_argument_syntax(monkeypatch):
+def test_code_agent_variable_argument_is_not_checked_against_literal_enum(monkeypatch):
     echo = CountingEchoTool()
     echo.inputs = deepcopy(echo.inputs)
     echo.inputs["value"]["enum"] = ["A"]
-    code = 'candidate = "B"\nobserved = echo(candidate)\nfinal_answer(observed)'
+    code = 'v0 = "B"\nv1 = echo(value=v0)\nfinal_answer(answer=v1)'
     model = _code_model(monkeypatch, code, [echo])
     agent = CodeAgent(tools=[echo], model=model, max_steps=1)
 
+    # A variable's runtime value cannot be inferred by the generation regex.
     assert agent.run("Use the candidate") == "B"
     assert echo.calls == ["B"]
+
+
+def test_code_regex_supports_structured_and_free_form_final_answers():
+    answer_schema = {
+        "type": "object",
+        "properties": {
+            "selected_box": {"type": "string", "enum": ["Compact", "Standard"]},
+            "delivered_price_usd": {"type": "number", "minimum": 0},
+        },
+        "required": ["selected_box", "delivered_price_usd"],
+        "additionalProperties": False,
+    }
+    pattern = build_code_regex(_action_schema([EchoTool()], answer_schema, None))
+    assert re.fullmatch(
+        pattern,
+        'final_answer(answer={"selected_box": "Standard", "delivered_price_usd": 6.35})',
+    )
+    assert not re.fullmatch(
+        pattern,
+        'final_answer(answer={"selected_box": "none", "delivered_price_usd": 6.35})',
+    )
+    assert not re.fullmatch(
+        pattern,
+        'final_answer(answer={"selected_box": "Standard", "delivered_price_usd": -6.35})',
+    )
+
+    default_pattern = build_code_regex(_action_schema([EchoTool()], None, None))
+    assert re.fullmatch(default_pattern, 'final_answer(answer="ok")')
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        'v0 = missing(value="A")\nfinal_answer(answer=v0)',
+        'v0 = echo(other="A")\nfinal_answer(answer=v0)',
+        'v0 = echo(value="B")\nfinal_answer(answer=v0)',
+    ],
+)
+def test_code_agent_rejects_unknown_tools_keys_and_literal_enum(
+    monkeypatch, invalid
+):
+    echo = CountingEchoTool()
+    echo.inputs = deepcopy(echo.inputs)
+    echo.inputs["value"]["enum"] = ["A"]
+    model = _code_model(monkeypatch, invalid, [echo])
+    agent = CodeAgent(tools=[echo], model=model, max_steps=1)
+
+    with pytest.raises(AgentGenerationError):
+        agent.run("Answer")
+    assert echo.calls == []
+    assert len(model.outlines_model.inputs) == 1
 
 
 def test_native_step_limit_uses_smolagents_fallback(make_model):

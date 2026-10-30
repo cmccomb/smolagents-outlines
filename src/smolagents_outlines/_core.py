@@ -6,15 +6,16 @@ import ast
 import json
 import keyword
 import math
+import re
 import uuid
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any, NoReturn, cast
 
 import outlines
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator
 from outlines.inputs import Chat
-from outlines.types import JsonSchema
+from outlines.types import JsonSchema, Regex
 from smolagents import Tool
 from smolagents.models import (
     ChatMessage,
@@ -27,18 +28,14 @@ from smolagents.models import (
 )
 from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
+from ._code_regex import build_code_regex
+
 
 _SCALAR_TYPES = {"string", "integer", "number", "boolean", "null"}
 _SCHEMA_KEYS = {
     "type", "description", "enum", "const", "minimum", "maximum",
     "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength",
     "pattern",
-}
-_CODE_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {"code": {"type": "string", "minLength": 1}},
-    "required": ["code"],
-    "additionalProperties": False,
 }
 
 
@@ -159,47 +156,8 @@ def _action_schema(
     return schema
 
 
-def _validate_code_calls(
-    code: str, argument_schemas: Mapping[str, Mapping[str, object]]
-) -> None:
-    """Check Python syntax and direct calls to the declared tools."""
-    tree = ast.parse(code)
-    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id in argument_schemas:
-            parent = parents.get(node)
-            if not isinstance(parent, ast.Call) or parent.func is not node:
-                raise ValueError(f"Use {node.id} as a direct tool call")
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-            continue
-        name = node.func.id
-        if name not in argument_schemas:
-            continue
-        schema = argument_schemas[name]
-        properties = cast(dict[str, dict[str, object]], schema["properties"])
-        arg_names = list(properties)
-        if len(node.args) > len(arg_names) or any(isinstance(arg, ast.Starred) for arg in node.args):
-            raise ValueError(f"{name} has invalid positional arguments")
-        supplied = dict(zip(arg_names, node.args))
-        for keyword_arg in node.keywords:
-            key = keyword_arg.arg
-            if key is None or key not in properties or key in supplied:
-                raise ValueError(f"{name} has an unknown or duplicate keyword argument")
-            supplied[key] = keyword_arg.value
-        missing = set(cast(list[str], schema["required"])) - set(supplied)
-        if missing:
-            raise ValueError(f"{name} is missing arguments: {sorted(missing)}")
-        for key, expression in supplied.items():
-            try:
-                value = ast.literal_eval(expression)
-            except (ValueError, TypeError, RecursionError):
-                continue  # A runtime expression can only be checked when it executes.
-            _check_finite_numbers(value)
-            Draft202012Validator(properties[key]).validate(value)
-
-
 class OutlinesToolModel(Model):
-    """Constrain native tool calls and check CodeAgent Python before execution."""
+    """Constrain native tool calls and a bounded CodeAgent Python subset."""
 
     def __init__(
         self,
@@ -218,7 +176,6 @@ class OutlinesToolModel(Model):
         }
         self.schema = _action_schema(self.tools, final_answer_schema, final_answers)
         self.validator = Draft202012Validator(self.schema)
-        self.code_validator = Draft202012Validator(_CODE_SCHEMA)
         self.argument_schemas = {
             cast(str, branch["properties"]["name"]["const"]): cast(
                 dict[str, object], branch["properties"]["arguments"]
@@ -271,11 +228,13 @@ class OutlinesToolModel(Model):
                 for tool in self.tools
             )
             system_prompt = (
-                "Write Python for this CodeAgent step. You may use variables, "
-                "arithmetic, conditionals, loops, and multiple tool calls. "
-                "Call declared tools directly with explicit arguments. "
-                "Call final_answer(answer=result) when ready; a bare Python "
-                "expression does not finish the run. Available tools:\n"
+                "Write straight-line Python for this CodeAgent step. You may "
+                "assign v0, v1, and other v-numbered variables and chain "
+                "multiple direct tool calls. Each tool argument must be a "
+                "v-numbered variable or a literal shaped like its declared "
+                "type. Do not use loops, conditionals, imports, nested calls, "
+                "or bare expressions. Call final_answer(answer=...) when ready. "
+                "Available tools:\n"
                 + catalog + "\n- final_answer: return the answer; arguments: "
                 + json.dumps(self.argument_schemas["final_answer"])
             )
@@ -284,37 +243,22 @@ class OutlinesToolModel(Model):
             else:
                 clean.insert(0, {"role": "system", "content": system_prompt})
             clean[-1]["content"] += (
-                "\n\nReturn a JSON object with only a code field containing "
-                "plain Python for this step. Do not include code tags or prose."
+                "\n\nReturn only the Python statements for this step, without "
+                "code tags or prose. Use v-numbered variables for intermediate "
+                "results and explicit keyword arguments for tool calls."
             )
-            for attempt in range(3):
-                raw = self.outlines_model(
-                    Chat(clean), output_type=JsonSchema(_CODE_SCHEMA),
-                    max_new_tokens=self.max_new_tokens, do_sample=False,
-                )
-                try:
-                    payload = cast(
-                        dict[str, object],
-                        json.loads(raw, parse_constant=_reject_nonfinite_constant),
-                    )
-                    self.code_validator.validate(payload)
-                    code = cast(str, payload["code"])
-                    if "<code>" in code or "</code>" in code:
-                        raise ValueError("Do not put code-block tags inside code")
-                    _validate_code_calls(code, self.argument_schemas)
-                except (SyntaxError, ValueError, ValidationError) as exc:
-                    if attempt == 2:
-                        raise ValueError(f"CodeAgent code failed validation: {exc}") from exc
-                    clean[-1]["content"] += (
-                        f"\n\nPrevious code {raw!r} failed validation: {exc}. "
-                        "Return corrected Python in the code field."
-                    )
-                    continue
-                return ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=f"<code>\n{code}\n</code>", raw=raw,
-                )
-            raise RuntimeError("CodeAgent code validation did not complete")
+            pattern = build_code_regex(self.schema)
+            raw = self.outlines_model(
+                Chat(clean), output_type=Regex(pattern),
+                max_new_tokens=self.max_new_tokens, do_sample=False,
+            )
+            if re.fullmatch(pattern, raw) is None:
+                raise ValueError("CodeAgent generation ended outside the Python constraint")
+            ast.parse(raw)
+            return ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content=f"<code>\n{raw}\n</code>", raw=raw,
+            )
         clean[-1]["content"] += (
             "\n\nReturn exactly one JSON object with name and arguments for "
             "one available tool. This call will be executed as the next agent "
