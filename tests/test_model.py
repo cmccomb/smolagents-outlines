@@ -1,6 +1,5 @@
 """Contract tests for generated actions and agent integration."""
 
-import ast
 import json
 from copy import deepcopy
 from types import SimpleNamespace
@@ -22,6 +21,31 @@ class EchoTool(Tool):
 
     def forward(self, value: str) -> str:
         return value
+
+
+class CountingEchoTool(EchoTool):
+    def __init__(self):
+        self.calls = []
+        super().__init__()
+
+    def forward(self, value: str) -> str:
+        self.calls.append(value)
+        return value
+
+
+class UpperTool(Tool):
+    name = "upper"
+    description = "Uppercase the supplied text."
+    inputs = {"value": {"type": "string", "description": "Text to uppercase"}}
+    output_type = "string"
+
+    def __init__(self):
+        self.calls = []
+        super().__init__()
+
+    def forward(self, value: str) -> str:
+        self.calls.append(value)
+        return value.upper()
 
 
 class FakeOutlines:
@@ -68,6 +92,17 @@ def _runtime_tools(tool):
     return [tool, SimpleNamespace(name="final_answer")]
 
 
+def _code_model(monkeypatch, code, tools):
+    # CodeAgent retries invalid code twice before failing closed.
+    response = json.dumps({"code": code})
+    fake = FakeOutlines(response, response, response)
+    monkeypatch.setattr(
+        "smolagents_outlines._core.outlines.from_transformers",
+        lambda *_: fake,
+    )
+    return OutlinesToolModel(None, None, tools)
+
+
 def test_free_form_final_answer_is_default(make_model):
     answer = "Any explanation that fits this task"
     model, tool = make_model(json.dumps({
@@ -87,29 +122,15 @@ def test_restricted_and_structured_final_answers(make_model):
     structured = json.dumps({
         "name": "final_answer", "arguments": {"answer": {"choice": "Standard"}},
     })
-    model, _ = make_model(
-        structured,
-        final_answer_schema={
-            "type": "object",
-            "properties": {"choice": {"type": "string"}},
-            "required": ["choice"],
-            "additionalProperties": False,
-        },
-    )
-    message = _generate(model)
-    assert "final_answer(answer={'choice': 'Standard'})" in message.content
-    ast.parse(message.content.removeprefix("<code>\n").removesuffix("\n</code>"))
-
     schema = {
         "type": "object",
         "properties": {"choice": {"type": "string"}},
         "required": ["choice"],
         "additionalProperties": False,
     }
-    for agent_cls in (ToolCallingAgent, CodeAgent):
-        model, tool = make_model(structured, final_answer_schema=schema)
-        agent = agent_cls(tools=[tool], model=model, max_steps=2)
-        assert agent.run("Choose") == {"choice": "Standard"}
+    model, tool = make_model(structured, final_answer_schema=schema)
+    agent = ToolCallingAgent(tools=[tool], model=model, max_steps=2)
+    assert agent.run("Choose") == {"choice": "Standard"}
 
 
 def test_invalid_action_never_becomes_a_tool_call(make_model):
@@ -119,9 +140,9 @@ def test_invalid_action_never_becomes_a_tool_call(make_model):
         _generate(model, _runtime_tools(tool))
 
     bad_number = '{"name":"final_answer","arguments":{"answer":1e999}}'
-    model, _ = make_model(bad_number, final_answer_schema={"type": "number"})
+    model, tool = make_model(bad_number, final_answer_schema={"type": "number"})
     with pytest.raises(ValueError, match="Nonfinite"):
-        _generate(model)
+        _generate(model, _runtime_tools(tool))
 
 
 def test_tool_schema_changes_fail_before_generation(make_model):
@@ -131,32 +152,79 @@ def test_tool_schema_changes_fail_before_generation(make_model):
         _generate(model, _runtime_tools(tool))
 
 
-def test_native_agents_use_the_constrained_model(make_model):
+def test_native_tool_agent_uses_the_constrained_model(make_model):
     final = '{"name":"final_answer","arguments":{"answer":"varies"}}'
     model, tool = make_model(final)
     tool_agent = ToolCallingAgent(tools=[tool], model=model, max_steps=2)
     assert tool_agent.model is model
     assert tool_agent.run("Answer") == "varies"
 
-    model, tool = make_model(final)
-    code_agent = CodeAgent(
-        tools=[tool], model=model, max_steps=2,
-        instructions="Use the user's requested format.",
-    )
-    assert code_agent.model is model
-    assert code_agent.run("Answer") == "varies"
-    system_prompt = model.outlines_model.inputs[0].messages[0]["content"]
-    assert "Choose the next single action" in system_prompt
-    assert "echo" in system_prompt
-    assert "Use the user's requested format." in system_prompt
 
-
-@pytest.mark.parametrize("agent_cls", [ToolCallingAgent, CodeAgent])
-def test_native_agent_rejects_invalid_generated_action(make_model, agent_cls):
+def test_native_tool_agent_rejects_invalid_generated_action(make_model):
     model, tool = make_model('{"name":"echo","arguments":{"other":"bad"}}')
-    agent = agent_cls(tools=[tool], model=model, max_steps=2)
+    agent = ToolCallingAgent(tools=[tool], model=model, max_steps=2)
     with pytest.raises(AgentGenerationError):
         agent.run("Echo")
+
+
+def test_code_agent_chains_multiple_tools_with_python_variables(monkeypatch):
+    echo, upper = CountingEchoTool(), UpperTool()
+    code = (
+        'first = echo(value="hello")\n'
+        'second = upper(first)\n'
+        'final_answer(second)'
+    )
+    model = _code_model(monkeypatch, code, [echo, upper])
+    agent = CodeAgent(tools=[echo, upper], model=model, max_steps=1)
+
+    assert agent.run("Uppercase an echo") == "HELLO"
+    assert echo.calls == ["hello"]
+    assert upper.calls == ["hello"]
+
+
+def test_code_agent_rejects_invalid_direct_call_before_any_execution(monkeypatch):
+    echo = CountingEchoTool()
+    code = 'echo(value="first")\necho(unknown="second")'
+    model = _code_model(monkeypatch, code, [echo])
+    agent = CodeAgent(tools=[echo], model=model, max_steps=1)
+
+    with pytest.raises(AgentGenerationError, match="unknown or duplicate keyword"):
+        agent.run("Call echo twice")
+    assert echo.calls == []
+
+
+def test_code_agent_regenerates_invalid_python_before_execution(monkeypatch):
+    echo = CountingEchoTool()
+    invalid = 'echo(value="must-not-run")\nif True print("invalid")'
+    valid = 'final_answer("ok")'
+    fake = FakeOutlines(
+        json.dumps({"code": invalid}),
+        json.dumps({"code": valid}),
+    )
+    monkeypatch.setattr(
+        "smolagents_outlines._core.outlines.from_transformers",
+        lambda *_: fake,
+    )
+    model = OutlinesToolModel(None, None, [echo])
+    agent = CodeAgent(tools=[echo], model=model, max_steps=1)
+
+    assert agent.run("Answer after correcting syntax") == "ok"
+    assert len(fake.inputs) == 2
+    assert echo.calls == []
+    action = agent.memory.steps[1]
+    assert action.model_output_message.content == f"<code>\n{valid}\n</code>"
+
+
+def test_code_agent_accepts_dynamic_tool_argument_syntax(monkeypatch):
+    echo = CountingEchoTool()
+    echo.inputs = deepcopy(echo.inputs)
+    echo.inputs["value"]["enum"] = ["A"]
+    code = 'candidate = "B"\nobserved = echo(candidate)\nfinal_answer(observed)'
+    model = _code_model(monkeypatch, code, [echo])
+    agent = CodeAgent(tools=[echo], model=model, max_steps=1)
+
+    assert agent.run("Use the candidate") == "B"
+    assert echo.calls == ["B"]
 
 
 def test_native_step_limit_uses_smolagents_fallback(make_model):

@@ -1,11 +1,8 @@
-"""Outlines-constrained tool actions for smolagents 1.26.0.
-
-The model is the public integration point. It returns a native tool call to
-ToolCallingAgent or a single Python invocation to CodeAgent.
-"""
+"""Outlines-constrained actions for native smolagents agents."""
 
 from __future__ import annotations
 
+import ast
 import json
 import keyword
 import math
@@ -15,7 +12,7 @@ from copy import deepcopy
 from typing import Any, NoReturn, cast
 
 import outlines
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 from outlines.inputs import Chat
 from outlines.types import JsonSchema
 from smolagents import Tool
@@ -36,6 +33,12 @@ _SCHEMA_KEYS = {
     "type", "description", "enum", "const", "minimum", "maximum",
     "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength",
     "pattern",
+}
+_CODE_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {"code": {"type": "string", "minLength": 1}},
+    "required": ["code"],
+    "additionalProperties": False,
 }
 
 
@@ -156,8 +159,47 @@ def _action_schema(
     return schema
 
 
+def _validate_code_calls(
+    code: str, argument_schemas: Mapping[str, Mapping[str, object]]
+) -> None:
+    """Check Python syntax and direct calls to the declared tools."""
+    tree = ast.parse(code)
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in argument_schemas:
+            parent = parents.get(node)
+            if not isinstance(parent, ast.Call) or parent.func is not node:
+                raise ValueError(f"Use {node.id} as a direct tool call")
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        name = node.func.id
+        if name not in argument_schemas:
+            continue
+        schema = argument_schemas[name]
+        properties = cast(dict[str, dict[str, object]], schema["properties"])
+        arg_names = list(properties)
+        if len(node.args) > len(arg_names) or any(isinstance(arg, ast.Starred) for arg in node.args):
+            raise ValueError(f"{name} has invalid positional arguments")
+        supplied = dict(zip(arg_names, node.args))
+        for keyword_arg in node.keywords:
+            key = keyword_arg.arg
+            if key is None or key not in properties or key in supplied:
+                raise ValueError(f"{name} has an unknown or duplicate keyword argument")
+            supplied[key] = keyword_arg.value
+        missing = set(cast(list[str], schema["required"])) - set(supplied)
+        if missing:
+            raise ValueError(f"{name} is missing arguments: {sorted(missing)}")
+        for key, expression in supplied.items():
+            try:
+                value = ast.literal_eval(expression)
+            except (ValueError, TypeError, RecursionError):
+                continue  # A runtime expression can only be checked when it executes.
+            _check_finite_numbers(value)
+            Draft202012Validator(properties[key]).validate(value)
+
+
 class OutlinesToolModel(Model):
-    """A smolagents model that emits only schema-valid action calls."""
+    """Constrain native tool calls and check CodeAgent Python before execution."""
 
     def __init__(
         self,
@@ -167,7 +209,7 @@ class OutlinesToolModel(Model):
         *,
         final_answer_schema: dict[str, object] | None = None,
         final_answers: Sequence[str] | None = None,
-        max_new_tokens: int = 128,
+        max_new_tokens: int = 512,
     ) -> None:
         super().__init__(model_id="outlines-transformers-smolagents")
         self.tools = list(tools)
@@ -176,6 +218,13 @@ class OutlinesToolModel(Model):
         }
         self.schema = _action_schema(self.tools, final_answer_schema, final_answers)
         self.validator = Draft202012Validator(self.schema)
+        self.code_validator = Draft202012Validator(_CODE_SCHEMA)
+        self.argument_schemas = {
+            cast(str, branch["properties"]["name"]["const"]): cast(
+                dict[str, object], branch["properties"]["arguments"]
+            )
+            for branch in cast(list[dict[str, Any]], self.schema["oneOf"])
+        }
         # Outlines' annotation omits fast tokenizers, which its adapter accepts.
         self.outlines_model = outlines.from_transformers(hf_model, tokenizer)  # type: ignore[arg-type]
         self.max_new_tokens = max_new_tokens
@@ -222,14 +271,50 @@ class OutlinesToolModel(Model):
                 for tool in self.tools
             )
             system_prompt = (
-                "Choose the next single action for this agent. Use the task and "
-                "previous observations. Call final_answer when you can answer. "
-                "Available tools:\n" + catalog + "\n- final_answer: return the answer."
+                "Write Python for this CodeAgent step. You may use variables, "
+                "arithmetic, conditionals, loops, and multiple tool calls. "
+                "Call declared tools directly with explicit arguments. "
+                "Call final_answer(answer=result) when ready; a bare Python "
+                "expression does not finish the run. Available tools:\n"
+                + catalog + "\n- final_answer: return the answer; arguments: "
+                + json.dumps(self.argument_schemas["final_answer"])
             )
             if clean and clean[0]["role"] == "system":
                 clean[0]["content"] += "\n\n" + system_prompt
             else:
                 clean.insert(0, {"role": "system", "content": system_prompt})
+            clean[-1]["content"] += (
+                "\n\nReturn a JSON object with only a code field containing "
+                "plain Python for this step. Do not include code tags or prose."
+            )
+            for attempt in range(3):
+                raw = self.outlines_model(
+                    Chat(clean), output_type=JsonSchema(_CODE_SCHEMA),
+                    max_new_tokens=self.max_new_tokens, do_sample=False,
+                )
+                try:
+                    payload = cast(
+                        dict[str, object],
+                        json.loads(raw, parse_constant=_reject_nonfinite_constant),
+                    )
+                    self.code_validator.validate(payload)
+                    code = cast(str, payload["code"])
+                    if "<code>" in code or "</code>" in code:
+                        raise ValueError("Do not put code-block tags inside code")
+                    _validate_code_calls(code, self.argument_schemas)
+                except (SyntaxError, ValueError, ValidationError) as exc:
+                    if attempt == 2:
+                        raise ValueError(f"CodeAgent code failed validation: {exc}") from exc
+                    clean[-1]["content"] += (
+                        f"\n\nPrevious code {raw!r} failed validation: {exc}. "
+                        "Return corrected Python in the code field."
+                    )
+                    continue
+                return ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=f"<code>\n{code}\n</code>", raw=raw,
+                )
+            raise RuntimeError("CodeAgent code validation did not complete")
         clean[-1]["content"] += (
             "\n\nReturn exactly one JSON object with name and arguments for "
             "one available tool. This call will be executed as the next agent "
@@ -245,14 +330,6 @@ class OutlinesToolModel(Model):
         self.validator.validate(action)
         name = cast(str, action["name"])
         arguments = cast(dict[str, object], action["arguments"])
-        if tools_to_call_from is None:
-            code = name + "(" + ", ".join(
-                f"{key}={value!r}" for key, value in arguments.items()
-            ) + ")"
-            return ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=f"<code>\n{code}\n</code>", raw=raw,
-            )
         return ChatMessage(
             role=MessageRole.ASSISTANT, content=raw, raw=raw,
             tool_calls=[ChatMessageToolCall(
